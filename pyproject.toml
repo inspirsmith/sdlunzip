@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "sdlunzip"
+version = "0.1.0"
+description = ""
+authors = ["Roger Hurwitz <rogerhurwitz@inspirsmith.com>"]
+readme = "README.md"
+packages = [{include = "sdlunzip", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+python-dotenv = "^1.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
