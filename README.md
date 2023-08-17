@@ -1,4 +1,4 @@
-# ccflow - A Python OAuth2 client credential workflow handler for `requests`
+# sdlunzip - A Python library for extracting system debug log file contents from Intel server system BMC generated zip files.
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
