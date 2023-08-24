@@ -56,7 +56,7 @@ def is_protected_zip(zip_file: zipfile.ZipFile) -> bool:
         zip_info = zip_file.getinfo(SYSDEBUG_FILENAME)
     except KeyError:
         return False  # treat an invalid file an unprotected
-    
+
     return bool(zip_info.flag_bits & PROTECTED_MASK)
 
 
@@ -100,3 +100,15 @@ def sysdebug_text_from_zip(zip_file: zipfile.ZipFile) -> str:
     )  # no harm done by using password on an unprotected zip file.
 
     return sysdebug_text.replace("\r", "")  # remove windows CR artifacts
+
+
+def text_from_zip(zip_file: zipfile.ZipFile, filename: str) -> str:
+    """Return text of filename from zip_file or empty string on error."""
+    try:
+        with zip_file.open(filename, "r") as file:
+            # ZipFile contents are stored in binary format and need decoding
+            raw_contents = file.read().decode(SYSDEBUG_ENCODING, errors="ignore")
+            # Another Windows legacy - carriage returns that need to be stripped
+            return raw_contents.replace("\r", "")
+    except KeyError:
+        return ""
