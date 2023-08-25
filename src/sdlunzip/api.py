@@ -1,19 +1,10 @@
 """ A utility library for extracting log files from BMC generated log zip files."""
 import os
 import zipfile
-from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Final
 
 from dotenv import load_dotenv
-
-from .exceptions import (
-    InvalidZipFile,
-    LogFileNotFoundError,
-    NoPasswordError,
-    SdlunzipException,
-)
-from .status_codes import Status
 
 load_dotenv()
 
@@ -27,29 +18,11 @@ SYSDEBUG_ZIP_FILENAME: Final = "SystemDebugLog.zip"
 try:
     SDL_PASSWORD = os.environb[b"SDL_PASSWORD"]  # zipfile expects binary string
 except KeyError as e:
-    raise NoPasswordError() from e
+    raise KeyError("sdlunzip requires SDL_PASSWORD environement to be set") from e
 
 
-@dataclass
-class Result:
-    _exception: SdlunzipException | None = field(repr=False, default=None)
-    text: str = ""
-    zip: zipfile.ZipFile | None = None
-    status_code: Status = field(init=False)
-
-    def __post_init__(self):
-        self.status_code = self._exception.STATUS_CODE if self._exception else Status.SUCCESS
-
-    def __bool__(self) -> bool:
-        return self.status_code == Status.SUCCESS
-
-    def raise_for_status(self):
-        if self._exception:
-            raise self._exception
-
-
-def get(zip_file: zipfile.ZipFile) -> Result:
-    """Return contents of system debug log file or redfish log filefrom zip file.
+def get(zip: zipfile.ZipFile) -> str:
+    """Return text of system debug log file or redfish log filefrom zip file.
 
     Regardless if zip file is bundled or not, password protected or not, this function attempts
     to find the actual system debug log file within it and returns the content of that log file
@@ -59,17 +32,17 @@ def get(zip_file: zipfile.ZipFile) -> Result:
         The string contents of the system debug log file within the zip file.
 
     """
-    if not isinstance(zip_file, zipfile.ZipFile):
-        return Result(InvalidZipFile())
+    if not isinstance(zip, zipfile.ZipFile):
+        raise TypeError("zip argument must be an instance of zipfile.ZipFile")
 
-    if _is_openbmc_zip(zip_file):
-        return _result_from_zip(zip_file=zip_file, filename=REDFISH_FILENAME)
+    if _is_openbmc_zip(zip):
+        return _text_from_zip(zip=zip, filename=REDFISH_FILENAME)
 
-    if _is_bundled_zip(zip_file):  # sysdebug file one level down in bundled zip
-        with zip_file.open(SYSDEBUG_ZIP_FILENAME) as sysdebug_zip_file:
-            zip_file = zipfile.ZipFile(BytesIO(sysdebug_zip_file.read()))
+    if _is_bundled_zip(zip):  # sysdebug file one level down in bundled zip
+        with zip.open(SYSDEBUG_ZIP_FILENAME) as sysdebug_zip_file:
+            zip = zipfile.ZipFile(BytesIO(sysdebug_zip_file.read()))
 
-    return _result_from_zip(zip_file, SYSDEBUG_FILENAME)
+    return _text_from_zip(zip=zip, filename=SYSDEBUG_FILENAME)
 
 
 def _is_openbmc_zip(zip_file: zipfile.ZipFile) -> bool:
@@ -95,7 +68,7 @@ def _is_openbmc_zip(zip_file: zipfile.ZipFile) -> bool:
 
 
 def _is_bundled_zip(zip_file: zipfile.ZipFile) -> bool:
-    """Test zip file to determine whether it is contains the actual zipped log file
+    """Test zip file to determine whether the actual zipped log file is inside it.
 
     In some cases, rather than generating a zipped log file, an Intel server systems will
     generate a bundled zip file - a zip file containing the actual zipped log file. This occurs
@@ -109,21 +82,26 @@ def _is_bundled_zip(zip_file: zipfile.ZipFile) -> bool:
         zip_file.getinfo(SYSDEBUG_ZIP_FILENAME)
     except KeyError:
         return False
+
     return True
 
 
-def _result_from_zip(zip_file: zipfile.ZipFile, filename: str) -> Result:
+def _text_from_zip(zip: zipfile.ZipFile, filename: str) -> str:
     """Return text of filename from zip_file or empty string on error."""
 
     try:
-        logtext = zip_file.read(filename, pwd=SDL_PASSWORD).decode(
+        logtext = zip.read(filename, pwd=SDL_PASSWORD).decode(
             LOGFILE_ENCODING, errors="ignore"
         )  # no harm done by using password on an unprotected zip file.
-    except KeyError:
-        return Result(LogFileNotFoundError())
+    except KeyError as e:
+        raise KeyError("no log file found in specified zip file") from e
+    except RuntimeError as e:
+        raise PermissionError(
+            f"Bad SDL_PASSWORD for {filename} in zip file: {SDL_PASSWORD}"
+        ) from e
     else:
         logtext = logtext.replace("\r", "")  # remove windows CR artifacts
     finally:
-        zip_file.close()
+        zip.close()
 
-    return Result(_exception=None, text=logtext, zip=zip_file)
+    return logtext
