@@ -29,7 +29,7 @@ def test_good_password_on_openbmc(monkeypatch):
 
 def test_get_bad_zip_type():
     with pytest.raises(TypeError):
-        sdlunzip.get("This is not a zip file.") # type: ignore
+        sdlunzip.get("This is not a zip file.")  # type: ignore
 
 
 def test_get_not_a_log():
@@ -41,3 +41,12 @@ def test_get_not_a_log():
 def test_is_bundled_zip_true():
     zip = zipfile.ZipFile("./tests/data/bundled.zip")
     assert sdlunzip.api._is_bundled_zip(zip)
+
+
+def test_is_openbmc_zip_true():
+    zip = zipfile.ZipFile("./tests/data/openbmc_log_1.zip")
+    assert sdlunzip.api.is_openbmc_zip(zip)
+
+def test_is_openbmc_zip_false():
+    zip = zipfile.ZipFile("./tests/data/legacy_log_1.zip")
+    assert not sdlunzip.api.is_openbmc_zip(zip)
